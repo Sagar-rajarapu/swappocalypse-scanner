@@ -11,44 +11,6 @@ import { simulateAnalysis } from "@/lib/analysis";
 
 export default function Upload() {
   const navigate = useNavigate();
-  const [uploadProgress, setUploadProgress] = useState<UploadProgress>({
-    status: 'idle',
-    progress: 0,
-  });
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [result, setResult] = useState<AnalysisResult | null>(null);
-
-  const handleFileSelected = (file: File) => {
-    setSelectedFile(file);
-    setUploadProgress({
-      status: 'idle',
-      progress: 0,
-    });
-    setResult(null);
-    
-    // Start analysis process
-    simulateAnalysis(file, (progress) => {
-      setUploadProgress(progress);
-      
-      // When complete, set the result
-      if (progress.status === 'complete') {
-        setTimeout(() => {
-          simulateAnalysis(file, () => {}).then((result) => {
-            setResult(result);
-          });
-        }, 500);
-      }
-    });
-  };
-  
-  const handleStartOver = () => {
-    setSelectedFile(null);
-    setUploadProgress({
-      status: 'idle',
-      progress: 0,
-    });
-    setResult(null);
-  };
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -66,25 +28,7 @@ export default function Upload() {
             </p>
           </div>
           
-          {!result ? (
-            <div className="space-y-12">
-              <UploadArea 
-                onFileSelected={handleFileSelected} 
-                progress={uploadProgress} 
-              />
-              
-              {(uploadProgress.status === 'uploading' || 
-               uploadProgress.status === 'processing') && (
-                <AnalysisProcess progress={uploadProgress} />
-              )}
-            </div>
-          ) : (
-            <ResultsDisplay 
-              result={result} 
-              videoFilename={selectedFile?.name || 'unknown.mp4'} 
-              onStartOver={handleStartOver}
-            />
-          )}
+          <UploadArea />
         </div>
       </main>
       
