@@ -27,8 +27,7 @@ export async function analyzeVideoWithBackend(
         mode: 'cors',
         headers: {
           'Accept': 'application/json',
-        },
-        timeout: 3000
+        }
       });
       
       if (!healthCheck.ok) {
