@@ -20,6 +20,27 @@ export async function analyzeVideoWithBackend(
   });
 
   try {
+    // Check if backend is available first
+    try {
+      const healthCheck = await fetch(`${API_URL}/health`, { 
+        method: 'GET',
+        mode: 'cors',
+        headers: {
+          'Accept': 'application/json',
+        },
+        timeout: 3000
+      });
+      
+      if (!healthCheck.ok) {
+        throw new Error("Backend server is not responding. Please make sure the Python API is running.");
+      }
+    } catch (error) {
+      // If health check fails, throw a user-friendly error
+      throw new Error(
+        "Cannot connect to the analysis server. Please make sure the Python backend is running on http://localhost:5000"
+      );
+    }
+
     // Create FormData for file upload
     const formData = new FormData();
     formData.append('video', file);
@@ -30,6 +51,9 @@ export async function analyzeVideoWithBackend(
     // Create promise for XHR request
     const uploadPromise = new Promise<AnalysisResult>((resolve, reject) => {
       xhr.open('POST', `${API_URL}/analyze`, true);
+      
+      // Set a timeout of 30 seconds for the request
+      xhr.timeout = 30000;
       
       // Track upload progress
       xhr.upload.onprogress = (event) => {
@@ -56,7 +80,11 @@ export async function analyzeVideoWithBackend(
       
       // Handle errors
       xhr.onerror = () => {
-        reject(new Error('Network error occurred'));
+        reject(new Error('Network error occurred. Please check your connection and make sure the backend server is running.'));
+      };
+      
+      xhr.ontimeout = () => {
+        reject(new Error('Request timed out. The server may be overwhelmed or not responding.'));
       };
       
       // Handle response
@@ -72,14 +100,16 @@ export async function analyzeVideoWithBackend(
               const result = JSON.parse(xhr.responseText);
               resolve(result);
             } catch (error) {
-              reject(new Error('Invalid response from server'));
+              reject(new Error('Invalid response from server. The response could not be parsed as JSON.'));
             }
+          } else if (xhr.status === 0) {
+            reject(new Error('Could not connect to the backend server. Please make sure the Python API is running at http://localhost:5000'));
           } else {
             try {
               const errorResponse = JSON.parse(xhr.responseText);
-              reject(new Error(errorResponse.error || 'Server error'));
+              reject(new Error(errorResponse.error || `Server error: ${xhr.status}`));
             } catch (error) {
-              reject(new Error(`Server error: ${xhr.status}`));
+              reject(new Error(`Server error: ${xhr.status}. Please check that the backend server is running correctly.`));
             }
           }
         }

@@ -6,6 +6,7 @@ import { AnalysisResult, UploadProgress } from "@/lib/types";
 import { AnalysisProcess } from "@/components/analysis/AnalysisProcess";
 import { ResultsDisplay } from "@/components/results/ResultsDisplay";
 import { ReportGenerator } from "@/components/report/ReportGenerator";
+import { useToast } from "@/hooks/use-toast";
 
 export function UploadArea() {
   const [file, setFile] = useState<File | null>(null);
@@ -15,6 +16,7 @@ export function UploadArea() {
   });
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [useBackend, setUseBackend] = useState<boolean>(false);
+  const { toast } = useToast();
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files.length > 0) {
@@ -22,14 +24,22 @@ export function UploadArea() {
       
       // Basic validation
       if (!selectedFile.type.startsWith('video/')) {
-        alert('Please select a video file.');
+        toast({
+          title: "Invalid file type",
+          description: "Please select a video file.",
+          variant: "destructive"
+        });
         return;
       }
       
       // Maximum file size (e.g., 100MB)
       const maxSize = 100 * 1024 * 1024;
       if (selectedFile.size > maxSize) {
-        alert('File is too large. Please select a file smaller than 100MB.');
+        toast({
+          title: "File too large",
+          description: "Please select a file smaller than 100MB.",
+          variant: "destructive"
+        });
         return;
       }
       
@@ -43,6 +53,18 @@ export function UploadArea() {
     if (!file) return;
     
     try {
+      if (useBackend) {
+        toast({
+          title: "Using Python Backend",
+          description: "Connecting to real AI analysis server...",
+        });
+      } else {
+        toast({
+          title: "Using Simulation",
+          description: "Running simulated analysis (no real AI detection)...",
+        });
+      }
+      
       // Choose whether to use backend or simulation
       const analysisFunc = useBackend ? analyzeVideoWithBackend : simulateAnalysis;
       
@@ -51,12 +73,36 @@ export function UploadArea() {
       });
       
       setResult(result);
+      
+      toast({
+        title: "Analysis Complete",
+        description: `Video analyzed with ${result.isDeepfake ? "deepfake detected!" : "no deepfake detected."}`,
+        variant: result.isDeepfake ? "destructive" : "default"
+      });
     } catch (error) {
       console.error('Analysis error:', error);
+      
+      // Create a more user-friendly error message
+      let errorMessage = "An unexpected error occurred during analysis.";
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        
+        // Check for specific connection errors
+        if (errorMessage.includes("backend server") || errorMessage.includes("not responding")) {
+          errorMessage = "Cannot connect to Python backend server. Please make sure it's running on http://localhost:5000";
+          
+          toast({
+            title: "Backend Server Error",
+            description: "Python server is not running. Try using simulation mode instead.",
+            variant: "destructive"
+          });
+        }
+      }
+      
       setProgress({
         status: 'error',
         progress: 0,
-        message: error instanceof Error ? error.message : 'An unexpected error occurred',
+        message: errorMessage,
       });
     }
   };
@@ -65,6 +111,18 @@ export function UploadArea() {
     setFile(null);
     setProgress({ status: 'idle', progress: 0 });
     setResult(null);
+  };
+
+  const toggleBackendMode = () => {
+    if (useBackend) {
+      setUseBackend(false);
+    } else {
+      setUseBackend(true);
+      toast({
+        title: "Backend Mode Enabled",
+        description: "Make sure the Python backend server is running at http://localhost:5000",
+      });
+    }
   };
 
   return (
@@ -102,7 +160,7 @@ export function UploadArea() {
                   type="checkbox" 
                   className="sr-only peer" 
                   checked={useBackend}
-                  onChange={() => setUseBackend(!useBackend)}
+                  onChange={toggleBackendMode}
                 />
                 <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
                 <span className="ml-3 text-sm font-medium text-gray-900 dark:text-gray-300">
@@ -177,14 +235,37 @@ export function UploadArea() {
             <div className="space-y-2">
               <h3 className="text-xl font-semibold">Error</h3>
               <p className="text-muted-foreground">{progress.message || 'An error occurred during analysis.'}</p>
+              
+              {useBackend && (
+                <div className="mt-2 text-sm bg-yellow-100 dark:bg-yellow-900 p-3 rounded">
+                  <p className="font-medium">Backend server issue detected</p>
+                  <p>Make sure the Python backend is running with this command:</p>
+                  <pre className="bg-black/10 p-2 mt-1 rounded text-xs overflow-x-auto">python deepfake_detection_api.py</pre>
+                  <p className="mt-2">Or switch to "simulation mode" below.</p>
+                </div>
+              )}
             </div>
             
-            <button
-              className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-              onClick={handleStartOver}
-            >
-              Try Again
-            </button>
+            <div className="flex gap-4">
+              <button
+                className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                onClick={handleStartOver}
+              >
+                Try Again
+              </button>
+              
+              {useBackend && (
+                <button
+                  className="inline-flex items-center justify-center rounded-md bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/90"
+                  onClick={() => {
+                    setUseBackend(false);
+                    setProgress({ status: 'idle', progress: 0 });
+                  }}
+                >
+                  Switch to Simulation
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
