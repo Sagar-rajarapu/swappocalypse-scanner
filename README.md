@@ -1,8 +1,5 @@
-# Welcome to your Lovable project
+# Welcome to your SwapScanner
 
-## Project info
-
-**URL**: https://lovable.dev/projects/d2d5f83d-b47a-4b01-85f8-72f334f00dfd
 
 ## How can I edit this code?
 
