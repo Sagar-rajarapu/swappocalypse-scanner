@@ -31,12 +31,14 @@ CORS(app)  # Enable CORS for all routes
 MODEL_PATH = "deepfake_detector.h5"
 UPLOAD_FOLDER = "uploads"
 RESULT_FOLDER = "results"
-ALLOWED_EXTENSIONS = {'mp4', 'avi', 'mov', 'webm'}
+GENERATION_FOLDER = "generated"
+ALLOWED_EXTENSIONS = {'mp4', 'avi', 'mov', 'webm', 'jpg', 'jpeg', 'png'}
 IMAGE_SIZE = (224, 224)
 
-# Ensure upload and result directories exist
+# Ensure directories exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(RESULT_FOLDER, exist_ok=True)
+os.makedirs(GENERATION_FOLDER, exist_ok=True)
 
 # Load the trained model
 model = None
@@ -369,6 +371,84 @@ def predict_video(video_path):
             "error": f"Error processing video: {str(e)}"
         }
 
+def generate_deepfake(method, **kwargs):
+    """Generate a deepfake video using the specified method"""
+    try:
+        # Create a unique ID for this generation
+        generation_id = str(uuid.uuid4())
+        output_path = os.path.join(GENERATION_FOLDER, f"{generation_id}.mp4")
+        
+        # In a real implementation, this would call the appropriate ML models
+        # For this demo, we're simulating the generation
+        
+        # Sleep to simulate processing time
+        time.sleep(10)
+        
+        # Generate a placeholder video file if needed
+        # In a real implementation, the ML model would create the actual video
+        with open(output_path, 'wb') as f:
+            f.write(b'This is a placeholder for the generated video')
+            
+        # Base URL for accessing the generated video
+        base_url = request.host_url.rstrip('/')
+        video_url = f"{base_url}/generated/{generation_id}.mp4"
+        
+        # Prepare result based on the method
+        if method == 'faceswap':
+            technique = kwargs.get('technique', 'gan')
+            technique_name = 'GAN-based Face Swapping'
+            if technique == '3dmm':
+                technique_name = '3D Morphable Model Face Swapping'
+            elif technique == 'landmark':
+                technique_name = 'Landmark-based Face Swapping'
+                
+            return {
+                "videoUrl": video_url,
+                "technique": technique_name,
+                "parameters": {
+                    "model": "DeepFaceSwap v2",
+                    "sourceVideo": kwargs.get('source_filename', 'unknown'),
+                    "targetVideo": kwargs.get('target_filename', 'unknown'),
+                    "faceAlignment": "68-point landmark",
+                    "resolution": "512x512",
+                    "smoothing": "Temporal consistency enabled"
+                },
+                "generatedAt": datetime.now().isoformat()
+            }
+        
+        elif method == 'text-to-video':
+            model = kwargs.get('model', 'sd')
+            model_name = 'Stable Diffusion Video'
+            if model == 'imagen':
+                model_name = 'Imagen Video'
+            elif model == 'gen2':
+                model_name = 'Runway Gen-2'
+                
+            return {
+                "videoUrl": video_url,
+                "technique": "Text-to-Video Diffusion",
+                "parameters": {
+                    "model": model_name,
+                    "prompt": kwargs.get('prompt', ''),
+                    "duration": kwargs.get('duration', 5),
+                    "resolution": "512x512",
+                    "framerate": "24fps",
+                    "samplingSteps": 50
+                },
+                "generatedAt": datetime.now().isoformat()
+            }
+        
+        else:
+            return {
+                "error": f"Unsupported generation method: {method}"
+            }
+            
+    except Exception as e:
+        print(f"Error generating deepfake: {e}")
+        return {
+            "error": f"Error generating deepfake: {str(e)}"
+        }
+
 @app.route('/api/analyze', methods=['POST'])
 def analyze_video():
     """API endpoint to analyze a video for deepfakes"""
@@ -403,10 +483,88 @@ def analyze_video():
     except Exception as e:
         return jsonify({"error": f"Error processing request: {str(e)}"}), 500
 
+@app.route('/api/generate', methods=['POST'])
+def generate_video():
+    """API endpoint to generate deepfake videos"""
+    try:
+        # Get the generation method
+        method = request.form.get('method')
+        if not method or method not in ['faceswap', 'text-to-video']:
+            return jsonify({"error": "Invalid generation method"}), 400
+        
+        # Handle different generation methods
+        if method == 'faceswap':
+            # Check if required files are in the request
+            if 'source' not in request.files or 'target' not in request.files:
+                return jsonify({"error": "Source and target files are required"}), 400
+                
+            source_file = request.files['source']
+            target_file = request.files['target']
+            
+            # Check if files were selected
+            if source_file.filename == '' or target_file.filename == '':
+                return jsonify({"error": "Both source and target files must be selected"}), 400
+                
+            # Check file types
+            if not allowed_file(source_file.filename) or not allowed_file(target_file.filename):
+                return jsonify({"error": f"Invalid file type. Allowed types: {', '.join(ALLOWED_EXTENSIONS)}"}), 400
+                
+            # Save uploaded files
+            source_filename = str(uuid.uuid4()) + '.' + source_file.filename.rsplit('.', 1)[1].lower()
+            target_filename = str(uuid.uuid4()) + '.' + target_file.filename.rsplit('.', 1)[1].lower()
+            
+            source_path = os.path.join(UPLOAD_FOLDER, source_filename)
+            target_path = os.path.join(UPLOAD_FOLDER, target_filename)
+            
+            source_file.save(source_path)
+            target_file.save(target_path)
+            
+            # Get additional parameters
+            technique = request.form.get('technique', 'gan')
+            
+            # Generate the deepfake
+            result = generate_deepfake(
+                method='faceswap',
+                technique=technique,
+                source_path=source_path,
+                target_path=target_path,
+                source_filename=source_file.filename,
+                target_filename=target_file.filename
+            )
+            
+            return jsonify(result)
+            
+        elif method == 'text-to-video':
+            # Get parameters
+            prompt = request.form.get('prompt')
+            if not prompt:
+                return jsonify({"error": "Text prompt is required"}), 400
+                
+            duration = int(request.form.get('duration', 5))
+            model = request.form.get('model', 'sd')
+            
+            # Generate the deepfake
+            result = generate_deepfake(
+                method='text-to-video',
+                prompt=prompt,
+                duration=duration,
+                model=model
+            )
+            
+            return jsonify(result)
+            
+    except Exception as e:
+        return jsonify({"error": f"Error processing request: {str(e)}"}), 500
+
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """API endpoint to check if the service is running"""
     return jsonify({"status": "ok", "message": "Deepfake detection API is running"})
+
+@app.route('/generated/<filename>', methods=['GET'])
+def get_generated_file(filename):
+    """Serve generated files"""
+    return send_from_directory(GENERATION_FOLDER, filename)
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
