@@ -1,12 +1,12 @@
 
-import { AnalysisResult, AnalysisStage, UploadProgress } from "./types";
+import { AnalysisResult, AnalysisStage, UploadProgress, ModelInfo } from "./types";
 
 // Simulated analysis stages with durations in milliseconds
 const ANALYSIS_STAGES: { stage: AnalysisStage; duration: number; message: string }[] = [
   { stage: 'upload', duration: 1500, message: 'Uploading video...' },
   { stage: 'preprocessing', duration: 2000, message: 'Preprocessing frames...' },
-  { stage: 'facial-analysis', duration: 3000, message: 'Analyzing facial features...' },
-  { stage: 'temporal-analysis', duration: 2500, message: 'Detecting temporal inconsistencies...' },
+  { stage: 'facial-analysis', duration: 3000, message: 'Analyzing facial features with CNN...' },
+  { stage: 'temporal-analysis', duration: 2500, message: 'Detecting temporal inconsistencies with RNN...' },
   { stage: 'audio-analysis', duration: 2000, message: 'Analyzing audio-visual synchronization...' },
   { stage: 'technique-detection', duration: 2500, message: 'Identifying mathematical techniques...' },
   { stage: 'confidence-scoring', duration: 1500, message: 'Calculating confidence scores...' },
@@ -114,6 +114,43 @@ const MATH_TECHNIQUES = [
   },
 ];
 
+// Mock AI models
+const AI_MODELS: ModelInfo[] = [
+  {
+    type: 'cnn',
+    name: 'FaceForensics++ CNN',
+    accuracy: 0.94,
+    description: 'Convolutional Neural Network trained on FaceForensics++ dataset to detect spatial inconsistencies in facial features'
+  },
+  {
+    type: 'rnn',
+    name: 'Temporal-LSTM',
+    accuracy: 0.89,
+    description: 'LSTM-based Recurrent Neural Network that analyzes frame sequences to detect temporal inconsistencies'
+  },
+  {
+    type: 'hybrid',
+    name: 'MultiModal Detector',
+    accuracy: 0.96,
+    description: 'Hybrid model combining CNN, RNN and audio analysis for comprehensive deepfake detection'
+  }
+];
+
+// Function to integrate with Python backend (simulation for now)
+async function analyzeWithPythonBackend(file: File): Promise<AnalysisResult> {
+  console.log('Would analyze with Python backend:', file.name);
+  
+  // This is a placeholder - in a real implementation, this would make an API call to your Python backend
+  // For example: return await fetch('/api/analyze', { method: 'POST', body: formData })
+  
+  // For now, we'll simulate a response after a delay
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve(generateMockResult(file.name));
+    }, 2000);
+  });
+}
+
 // Function to simulate the analysis process
 export function simulateAnalysis(
   file: File,
@@ -174,6 +211,8 @@ export function simulateAnalysis(
           
           // Resolve with analysis result
           setTimeout(() => {
+            // In a real implementation, this would call analyzeWithPythonBackend()
+            // For demo purposes, we'll use the mock result for now
             resolve(generateMockResult(file.name));
           }, 500);
         }
@@ -245,6 +284,9 @@ function generateMockResult(filename: string): AnalysisResult {
   // Sort techniques by probability (descending)
   techniques.sort((a, b) => b.probability - a.probability);
   
+  // Select a random AI model that was used
+  const modelUsed = AI_MODELS[Math.floor(Math.random() * AI_MODELS.length)];
+  
   return {
     isDeepfake,
     confidence,
@@ -252,6 +294,7 @@ function generateMockResult(filename: string): AnalysisResult {
     techniques,
     processedAt: new Date().toISOString(),
     processingTime: 15 + Math.random() * 10, // 15-25 seconds
+    modelUsed,
   };
 }
 
@@ -274,6 +317,14 @@ export function generateReport(result: AnalysisResult, filename: string): void {
     CONCLUSION
     ----------
     This video ${result.isDeepfake ? 'IS' : 'IS NOT'} a deepfake (${formatPercentage(result.confidence)} confidence)
+    
+    ${result.modelUsed ? `
+    AI MODEL USED
+    ------------
+    Model: ${result.modelUsed.name} (${result.modelUsed.type.toUpperCase()})
+    Accuracy: ${formatPercentage(result.modelUsed.accuracy)}
+    Description: ${result.modelUsed.description}
+    ` : ''}
     
     ${result.isDeepfake ? `
     DETECTED ABNORMALITIES

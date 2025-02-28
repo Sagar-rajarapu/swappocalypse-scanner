@@ -33,6 +33,11 @@ export function ResultsDisplay({ result, videoFilename, onStartOver }: ResultsDi
               Analysis completed on {new Date(result.processedAt).toLocaleString()}
               {' · '}{result.processingTime.toFixed(1)}s processing time
             </p>
+            {result.modelUsed && (
+              <p className="text-sm text-muted-foreground">
+                <span className="font-medium">Model used:</span> {result.modelUsed.name} ({result.modelUsed.type.toUpperCase()})
+              </p>
+            )}
           </div>
           
           <div className="flex items-center space-x-3">
@@ -111,6 +116,14 @@ export function ResultsDisplay({ result, videoFilename, onStartOver }: ResultsDi
                   : `Our analysis indicates that this video is likely authentic with ${formatPercentage(result.confidence)} confidence. 
                      We did not detect significant abnormalities consistent with deepfake manipulation.`}
               </p>
+              
+              {result.modelUsed && (
+                <p>
+                  This analysis was performed using our {result.modelUsed.type.toUpperCase()} model "{result.modelUsed.name}" 
+                  with a model accuracy of {formatPercentage(result.modelUsed.accuracy)}. 
+                  {result.modelUsed.description}
+                </p>
+              )}
               
               {result.isDeepfake && (
                 <p>

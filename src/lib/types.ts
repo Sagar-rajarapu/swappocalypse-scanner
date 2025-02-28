@@ -12,6 +12,13 @@ export interface MathTechnique {
   description: string;
 }
 
+export interface ModelInfo {
+  type: 'cnn' | 'rnn' | 'gnn' | 'hybrid';
+  name: string;
+  accuracy: number;
+  description: string;
+}
+
 export interface AnalysisResult {
   isDeepfake: boolean;
   confidence: number;
@@ -19,6 +26,7 @@ export interface AnalysisResult {
   techniques: MathTechnique[];
   processedAt: string;
   processingTime: number;
+  modelUsed?: ModelInfo;
 }
 
 export interface UploadProgress {
