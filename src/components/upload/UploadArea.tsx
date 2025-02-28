@@ -1,136 +1,200 @@
 
-import { useState, useRef } from "react";
-import { UploadProgress } from "@/lib/types";
+import { useState, ChangeEvent } from "react";
+import { simulateAnalysis } from "@/lib/analysis";
+import { analyzeVideoWithBackend } from "@/lib/analysis-backend";
+import { AnalysisResult, UploadProgress } from "@/lib/types";
+import { AnalysisProcess } from "@/components/analysis/AnalysisProcess";
+import { ResultsDisplay } from "@/components/results/ResultsDisplay";
+import { ReportGenerator } from "@/components/report/ReportGenerator";
 
-interface UploadAreaProps {
-  onFileSelected: (file: File) => void;
-  progress: UploadProgress;
-}
+export function UploadArea() {
+  const [file, setFile] = useState<File | null>(null);
+  const [progress, setProgress] = useState<UploadProgress>({
+    status: 'idle',
+    progress: 0,
+  });
+  const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [useBackend, setUseBackend] = useState<boolean>(false);
 
-export function UploadArea({ onFileSelected, progress }: UploadAreaProps) {
-  const [isDragging, setIsDragging] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const isUploading = progress.status === 'uploading' || progress.status === 'processing';
-  const showProgress = progress.status !== 'idle';
-
-  // Handle drag events
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setIsDragging(false);
-    
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const file = e.dataTransfer.files[0];
-      if (file.type.startsWith('video/')) {
-        handleFile(file);
-      } else {
-        alert('Please upload a video file.');
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files && event.target.files.length > 0) {
+      const selectedFile = event.target.files[0];
+      
+      // Basic validation
+      if (!selectedFile.type.startsWith('video/')) {
+        alert('Please select a video file.');
+        return;
       }
+      
+      // Maximum file size (e.g., 100MB)
+      const maxSize = 100 * 1024 * 1024;
+      if (selectedFile.size > maxSize) {
+        alert('File is too large. Please select a file smaller than 100MB.');
+        return;
+      }
+      
+      setFile(selectedFile);
+      setProgress({ status: 'idle', progress: 0 });
+      setResult(null);
     }
   };
 
-  // Handle file input change
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      handleFile(e.target.files[0]);
+  const handleAnalyze = async () => {
+    if (!file) return;
+    
+    try {
+      // Choose whether to use backend or simulation
+      const analysisFunc = useBackend ? analyzeVideoWithBackend : simulateAnalysis;
+      
+      const result = await analysisFunc(file, (progress) => {
+        setProgress(progress);
+      });
+      
+      setResult(result);
+    } catch (error) {
+      console.error('Analysis error:', error);
+      setProgress({
+        status: 'error',
+        progress: 0,
+        message: error instanceof Error ? error.message : 'An unexpected error occurred',
+      });
     }
   };
 
-  // Common file handling
-  const handleFile = (file: File) => {
-    setSelectedFile(file);
-    onFileSelected(file);
-  };
-
-  // Trigger file input click
-  const handleClick = () => {
-    if (fileInputRef.current && !isUploading) {
-      fileInputRef.current.click();
-    }
+  const handleStartOver = () => {
+    setFile(null);
+    setProgress({ status: 'idle', progress: 0 });
+    setResult(null);
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto">
-      <div
-        className={`relative rounded-lg border-2 border-dashed p-8 transition-all duration-300 ${
-          isDragging
-            ? "border-primary bg-primary/5" 
-            : "border-border hover:border-primary/50 hover:bg-muted/50"
-        } ${isUploading ? "pointer-events-none opacity-50" : "cursor-pointer"}`}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        onClick={handleClick}
-      >
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileChange}
-          accept="video/*"
-          className="hidden"
-        />
-
-        <div className="flex flex-col items-center justify-center space-y-4 text-center">
-          <div className="rounded-full p-3 bg-secondary">
-            <svg
-              className="h-6 w-6 text-muted-foreground"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1.5}
-            >
-              <path
+    <div className="w-full max-w-4xl mx-auto p-6">
+      {progress.status === 'idle' && !result && (
+        <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
+          <div className="flex flex-col items-center justify-center space-y-4">
+            <div className="rounded-full bg-primary/10 p-3">
+              <svg
+                className="h-6 w-6 text-primary"
+                fill="none"
+                height="24"
+                stroke="currentColor"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path d="m21 12-7-7v4H3v6h11v4z" />
+              </svg>
+            </div>
+            
+            <div className="space-y-2">
+              <h3 className="text-xl font-semibold">Upload a video</h3>
+              <p className="text-muted-foreground">
+                Upload a video file to analyze for potential deepfake manipulation
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2 items-center">
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  className="sr-only peer" 
+                  checked={useBackend}
+                  onChange={() => setUseBackend(!useBackend)}
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                <span className="ml-3 text-sm font-medium text-gray-900 dark:text-gray-300">
+                  Use Backend Analysis
+                </span>
+              </label>
+              <p className="text-xs text-muted-foreground max-w-xs text-center">
+                {useBackend 
+                  ? "Connect to Python backend for real AI-powered analysis (requires backend server)" 
+                  : "Use simulation mode for frontend demo (no real analysis)"}
+              </p>
+            </div>
+            
+            <div className="grid w-full max-w-sm gap-1.5">
+              <label
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                htmlFor="video-upload"
+              >
+                Video File
+              </label>
+              
+              <input
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                id="video-upload"
+                type="file"
+                accept="video/*"
+                onChange={handleFileChange}
               />
-            </svg>
-          </div>
-          <div className="space-y-1">
-            <p className="text-sm font-medium">
-              {selectedFile && !showProgress
-                ? selectedFile.name
-                : "Upload your video file"}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Drag and drop or click to select a video file
-            </p>
+            </div>
+            
+            {file && (
+              <div className="mt-4">
+                <p className="text-sm text-muted-foreground mb-2">
+                  Selected file: <span className="font-medium">{file.name}</span> ({(file.size / (1024 * 1024)).toFixed(2)} MB)
+                </p>
+                <button
+                  className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                  onClick={handleAnalyze}
+                >
+                  Analyze Video
+                </button>
+              </div>
+            )}
           </div>
         </div>
-      </div>
-
-      {showProgress && (
-        <div className="mt-6 space-y-4 animate-fade-in">
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span>{progress.message}</span>
-              <span>{progress.progress.toFixed(0)}%</span>
+      )}
+      
+      {(progress.status === 'uploading' || progress.status === 'processing') && (
+        <AnalysisProcess progress={progress} />
+      )}
+      
+      {progress.status === 'error' && (
+        <div className="border border-destructive/50 rounded-lg p-8 bg-destructive/10">
+          <div className="flex flex-col items-center justify-center space-y-4 text-center">
+            <div className="rounded-full bg-destructive/20 p-3">
+              <svg
+                className="h-6 w-6 text-destructive"
+                fill="none"
+                height="24"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+                width="24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path d="M12 8v4m0 4h.01M22 12A10 10 0 1 1 2 12a10 10 0 0 1 20 0z" />
+              </svg>
             </div>
-            <div className="h-2 rounded-full bg-secondary">
-              <div
-                className="h-full rounded-full bg-primary transition-all duration-300"
-                style={{ width: `${progress.progress}%` }}
-              ></div>
+            
+            <div className="space-y-2">
+              <h3 className="text-xl font-semibold">Error</h3>
+              <p className="text-muted-foreground">{progress.message || 'An error occurred during analysis.'}</p>
             </div>
+            
+            <button
+              className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              onClick={handleStartOver}
+            >
+              Try Again
+            </button>
           </div>
-
-          {progress.currentStage && (
-            <p className="text-xs text-muted-foreground">
-              Current stage: {progress.currentStage.replace(/-/g, ' ')}
-            </p>
-          )}
         </div>
+      )}
+      
+      {result && (
+        <ResultsDisplay 
+          result={result} 
+          videoFilename={file?.name || 'video'} 
+          onStartOver={handleStartOver} 
+        />
       )}
     </div>
   );
